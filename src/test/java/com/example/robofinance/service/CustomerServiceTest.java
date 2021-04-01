@@ -3,20 +3,27 @@ package com.example.robofinance.service;
 import com.example.robofinance.ApplicationTest;
 import com.example.robofinance.dto.AddressDto;
 import com.example.robofinance.dto.CustomerDto;
-import com.example.robofinance.ws.CustomerController;
-import javassist.NotFoundException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 
 @SpringBootTest(classes = { ApplicationTest.class })
 @RunWith(SpringRunner.class)
@@ -50,24 +57,44 @@ public class CustomerServiceTest {
             .build();
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private ObjectMapper objectMapper;
 
     @Autowired
-    private CustomerController customerController;
+    private WebApplicationContext webApplicationContext;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    private MockMvc mvc;
+
+    @Before
+    public void before() {
+        mvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
     @Test
-    public void createCustomer(){
-        ResponseEntity<CustomerDto> responseEntity = customerController.createCustomer(customerDto);
-        CustomerDto res = responseEntity.getBody();
+    public void createCustomer() throws Exception {
+        MvcResult mvcResult = mvc.perform(MockMvcRequestBuilders
+                .post("/customer/create").contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(objectMapper.writeValueAsString(customerDto))).andReturn();
+        assertEquals(200, mvcResult.getResponse().getStatus());
+        CustomerDto res = objectMapper.readValue(
+                mvcResult.getResponse().getContentAsString(), CustomerDto.class);
         customerComparison(res);
         cleanBase();
     }
 
     @Test
-    public void updateActualAddress() throws NotFoundException {
-        customerController.createCustomer(customerDto);
-        ResponseEntity<CustomerDto> responseEntity = customerController.updateActualAddress(actualAddress, 1L);
-        AddressDto res = responseEntity.getBody().getActualAddress();
+    public void updateActualAddress() throws Exception {
+        mvc.perform(MockMvcRequestBuilders
+                .post("/customer/create").contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(objectMapper.writeValueAsString(customerDto)));
+        MvcResult mvcResult = mvc.perform(MockMvcRequestBuilders
+                .put("/customer/updateActualAddress").contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(objectMapper.writeValueAsString(actualAddress)).param("id", "1")).andReturn();
+        assertEquals(200, mvcResult.getResponse().getStatus());
+        AddressDto res = objectMapper.readValue(
+                mvcResult.getResponse().getContentAsString(), CustomerDto.class).getActualAddress();
         assertThat(res.getCountry()).isEqualTo(actualAddress.getCountry());
         assertThat(res.getRegion()).isEqualTo(actualAddress.getRegion());
         assertThat(res.getCity()).isEqualTo(actualAddress.getCity());
@@ -78,10 +105,15 @@ public class CustomerServiceTest {
     }
 
     @Test
-    public void searchCustomer(){
-        customerController.createCustomer(customerDto);
-        ResponseEntity<List<CustomerDto>> responseEntity = customerController.searchCustomer(customerDto.getFirstName(), customerDto.getLastName());
-        List<CustomerDto> list = responseEntity.getBody();
+    public void searchCustomer() throws Exception {
+        mvc.perform(MockMvcRequestBuilders
+                .post("/customer/create").contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(objectMapper.writeValueAsString(customerDto)));
+        MvcResult mvcResult = mvc.perform(MockMvcRequestBuilders
+                .get("/customer/get/{firstName}/{lastName}", "Anton", "Kondik")).andReturn();
+        assertEquals(200, mvcResult.getResponse().getStatus());
+        List<CustomerDto> list = objectMapper.readValue(
+                mvcResult.getResponse().getContentAsString(), new TypeReference<List<CustomerDto>>(){});
         customerComparison(list.get(0));
         cleanBase();
     }
