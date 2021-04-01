@@ -34,9 +34,8 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerDto updateActualAddress(AddressDto actualAddressDto, Long CustomerId) throws NotFoundException {
         Optional<Customer> oCustomer = customerRepository.findById(CustomerId);
-        if (!oCustomer.isPresent())
-            throw new NotFoundException("Did not find customer with id " + CustomerId);
-        Customer customer = oCustomer.get();
+        Customer customer =
+                oCustomer.orElseThrow(() -> new NotFoundException("Did not find customer with id " + CustomerId));
         Address actualAddress = customer.getActualAddress();
         actualAddress.setCountry(actualAddressDto.getCountry());
         actualAddress.setRegion(actualAddressDto.getRegion());
@@ -56,10 +55,9 @@ public class CustomerServiceImpl implements CustomerService {
         List<Customer> customers = customerRepository.findByFirstNameAndLastName(firstName, lastName);
         if (!customers.isEmpty()) {
             log.debug("Client found {}", customers);
-            return customers.stream().map(CustomerConverter::convertToCustomerDto).collect(Collectors.toList());
         } else {
             log.warn("A client with the first name {} and the last name {} not found", firstName, lastName);
-            return Collections.emptyList();
         }
+        return customers.stream().map(CustomerConverter::convertToCustomerDto).collect(Collectors.toList());
     }
 }
